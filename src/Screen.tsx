@@ -1,5 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
-import { DrawerActions, useNavigation } from '@react-navigation/native';
+import { useNavigation } from 'expo-router';
 import React from 'react';
 import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -11,7 +11,7 @@ export function Screen({ title, subtitle, children }: { title: string; subtitle:
     <View style={styles.root}>
       <SafeAreaView edges={['top']} style={styles.header}>
         <View style={styles.row}>
-          <Pressable hitSlop={12} onPress={() => navigation.dispatch(DrawerActions.openDrawer())}>
+          <Pressable hitSlop={12} onPress={() => (navigation as any).dispatch({ type: 'OPEN_DRAWER' })}>
             <Ionicons name="menu" size={28} color="#fff" />
           </Pressable>
           <Text style={styles.title}>{title}</Text>
