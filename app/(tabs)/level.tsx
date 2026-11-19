@@ -2,6 +2,7 @@ import * as Haptics from 'expo-haptics';
 import { Accelerometer } from 'expo-sensors';
 import { useEffect, useRef, useState } from 'react';
 import { Platform, StyleSheet, Text, View } from 'react-native';
+import Animated, { useAnimatedStyle, useSharedValue, withSequence, withSpring, withTiming } from 'react-native-reanimated';
 import { Screen } from '../../src/Screen';
 import { colors } from '../../src/theme';
 
@@ -18,6 +19,7 @@ export default function LevelTab() {
   const [tilt, setTilt] = useState({ x: 0, y: 0 });
   const smooth = useRef({ x: 0, y: 0 });
   const wasLevel = useRef(false);
+  const pulse = useSharedValue(1);
 
   useEffect(() => {
     // El acelerómetro no existe en navegadores de escritorio
@@ -50,9 +52,15 @@ export default function LevelTab() {
   const isLevel = Math.abs(degX) < 1.5 && Math.abs(degY) < 1.5;
 
   useEffect(() => {
-    if (isLevel && !wasLevel.current) Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => { });
+    if (isLevel && !wasLevel.current) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+      // La burbuja "late" con rebote al quedar nivelada
+      pulse.value = withSequence(withTiming(1.5, { duration: 120 }), withSpring(1, { damping: 4, stiffness: 200 }));
+    }
     wasLevel.current = isLevel;
   }, [isLevel]);
+
+  const pulseStyle = useAnimatedStyle(() => ({ transform: [{ scale: pulse.value }] }));
 
   return (
     <Screen title="Nivel" subtitle="Apoya el teléfono en una superficie">
@@ -67,13 +75,9 @@ export default function LevelTab() {
           <View style={[styles.dial, isLevel && { borderColor: colors.primary }]}>
             <View style={styles.crossH} />
             <View style={styles.crossV} />
-            <View
-              style={[
-                styles.bubble,
-                { backgroundColor: isLevel ? colors.primary : colors.accent },
-                { transform: [{ translateX: clamp(-tilt.x * MAX * 2, MAX) }, { translateY: clamp(tilt.y * MAX * 2, MAX) }] },
-              ]}
-            />
+            <View style={{ width: BUBBLE, height: BUBBLE, transform: [{ translateX: clamp(-tilt.x * MAX * 2, MAX) }, { translateY: clamp(tilt.y * MAX * 2, MAX) }] }}>
+              <Animated.View style={[styles.bubble, { backgroundColor: isLevel ? colors.primary : colors.accent }, pulseStyle]} />
+            </View>
           </View>
           <Text style={[styles.status, isLevel && { color: colors.primary }]}>{isLevel ? 'Nivelado' : 'Inclinado'}</Text>
           <View style={styles.readout}>

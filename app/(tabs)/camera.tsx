@@ -1,12 +1,19 @@
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
+import { useState } from 'react';
 import { Alert, FlatList, Image, Linking, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import Animated, { ZoomIn } from 'react-native-reanimated';
 import { useApp } from '../../src/AppContext';
+import { Bounce } from '../../src/Bounce';
+import { PhotoCarousel } from '../../src/PhotoCarousel';
 import { Screen } from '../../src/Screen';
 import { cardShadow, colors } from '../../src/theme';
+import { ZoomViewer } from '../../src/ZoomViewer';
 
 export default function CameraTab() {
   const { photos, addPhoto, removePhoto } = useApp();
+  const [mode, setMode] = useState<'grid' | 'carousel'>('grid');
+  const [viewing, setViewing] = useState<string | null>(null);
 
   const save = (res: ImagePicker.ImagePickerResult) => {
     if (!res.canceled && res.assets?.[0]) {
@@ -42,40 +49,62 @@ export default function CameraTab() {
       { text: 'Eliminar', style: 'destructive', onPress: () => removePhoto(uri) },
     ]);
 
+  const empty = (
+    <View style={styles.empty}>
+      <Ionicons name="camera-outline" size={48} color={colors.muted} />
+      <Text style={styles.emptyTitle}>Aún no hay fotos</Text>
+      <Text style={styles.emptyText}>Toca “Tomar foto” para guardar la primera.</Text>
+    </View>
+  );
+
   return (
     <Screen title="Fotos" subtitle="Captura lo que encuentres en el camino">
       <View style={styles.actions}>
-        <Pressable style={[styles.btn, { flex: 2 }]} onPress={takePhoto}>
+        <Bounce containerStyle={{ flex: 2 }} style={styles.btn} onPress={takePhoto}>
           <Ionicons name="camera" size={20} color="#fff" />
           <Text style={styles.btnText}>Tomar foto</Text>
-        </Pressable>
-        <Pressable style={[styles.btn, styles.btnGhost, { flex: 1 }]} onPress={pickFromGallery}>
+        </Bounce>
+        <Bounce containerStyle={{ flex: 1 }} style={[styles.btn, styles.btnGhost]} onPress={pickFromGallery}>
           <Ionicons name="images-outline" size={20} color={colors.primary} />
           <Text style={[styles.btnText, { color: colors.primary }]}>Galería</Text>
-        </Pressable>
+        </Bounce>
       </View>
 
-      <FlatList
-        data={photos}
-        keyExtractor={(p) => p.uri}
-        numColumns={2}
-        columnWrapperStyle={{ gap: 12 }}
-        contentContainerStyle={{ gap: 12, paddingTop: 16, flexGrow: 1 }}
-        ListEmptyComponent={
-          <View style={styles.empty}>
-            <Ionicons name="camera-outline" size={48} color={colors.muted} />
-            <Text style={styles.emptyTitle}>Aún no hay fotos</Text>
-            <Text style={styles.emptyText}>Toca “Tomar foto” para guardar la primera.</Text>
-          </View>
-        }
-        renderItem={({ item }) => (
-          <Pressable style={styles.photo} onLongPress={() => confirmDelete(item.uri)}>
-            <Image source={{ uri: item.uri }} style={styles.img} />
-            <Text style={styles.date}>{item.takenAt}</Text>
-          </Pressable>
-        )}
-        ListFooterComponent={photos.length ? <Text style={styles.hint}>Mantén presionada una foto para eliminarla.</Text> : null}
-      />
+      {photos.length > 0 && (
+        <View style={styles.toggle}>
+          {(['grid', 'carousel'] as const).map((m) => (
+            <Pressable key={m} style={[styles.toggleBtn, mode === m && styles.toggleOn]} onPress={() => setMode(m)}>
+              <Ionicons name={m === 'grid' ? 'grid-outline' : 'albums-outline'} size={18} color={mode === m ? '#fff' : colors.primary} />
+              <Text style={[styles.toggleText, mode === m && { color: '#fff' }]}>{m === 'grid' ? 'Cuadrícula' : 'Carrusel'}</Text>
+            </Pressable>
+          ))}
+        </View>
+      )}
+
+      {photos.length === 0 ? (
+        empty
+      ) : mode === 'carousel' ? (
+        <PhotoCarousel photos={photos} onOpen={setViewing} onDelete={confirmDelete} />
+      ) : (
+        <FlatList
+          data={photos}
+          keyExtractor={(p) => p.uri}
+          numColumns={2}
+          columnWrapperStyle={{ gap: 12 }}
+          contentContainerStyle={{ gap: 12, paddingTop: 16 }}
+          renderItem={({ item }) => (
+            <Animated.View entering={ZoomIn.duration(300)} style={{ flex: 1 }}>
+              <Bounce style={styles.photo} onPress={() => setViewing(item.uri)} onLongPress={() => confirmDelete(item.uri)}>
+                <Image source={{ uri: item.uri }} style={styles.img} />
+                <Text style={styles.date}>{item.takenAt}</Text>
+              </Bounce>
+            </Animated.View>
+          )}
+          ListFooterComponent={<Text style={styles.hint}>Toca una foto para ampliarla. Mantén presionada para eliminarla.</Text>}
+        />
+      )}
+
+      <ZoomViewer uri={viewing} onClose={() => setViewing(null)} />
     </Screen>
   );
 }
@@ -85,7 +114,11 @@ const styles = StyleSheet.create({
   btn: { backgroundColor: colors.primary, borderRadius: 14, paddingVertical: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
   btnGhost: { backgroundColor: 'transparent', borderWidth: 1.5, borderColor: colors.primary },
   btnText: { color: '#fff', fontWeight: '700', fontSize: 15 },
-  photo: { flex: 1, backgroundColor: colors.card, borderRadius: 16, overflow: 'hidden', ...cardShadow },
+  toggle: { flexDirection: 'row', backgroundColor: '#DDEBE6', borderRadius: 12, padding: 4, marginTop: 14 },
+  toggleBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 8, borderRadius: 9 },
+  toggleOn: { backgroundColor: colors.primary },
+  toggleText: { fontWeight: '700', color: colors.primary, fontSize: 14 },
+  photo: { backgroundColor: colors.card, borderRadius: 16, overflow: 'hidden', ...cardShadow },
   img: { width: '100%', aspectRatio: 1 },
   date: { fontSize: 12, color: colors.muted, padding: 8 },
   empty: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 60 },
